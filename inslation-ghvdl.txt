@@ -1,0 +1,12 @@
+tar -xzf ghdl-llvm-6.0.0-macos14-aarch64.tar.gz
+sudo cp -r ghdl-llvm-6.0.0-macos14-aarch64/bin/* /usr/local/bin/
+sudo cp -r ghdl-llvm-6.0.0-macos14-aarch64/lib/* /usr/local/lib/
+sudo cp -r ghdl-llvm-6.0.0-macos14-aarch64/include/* /usr/local/include/
+sudo xattr -d com.apple.quarantine /usr/local/bin/ghdl   
+
+
+sudo cp /Users/odilonhoundegnonto/.cpan/build/Switch-2.17-1/Switch.pm /Library/Perl/5.34/
+sudo cp /Users/odilonhoundegnonto/.cpan/build/Switch-2.17-1/blib/lib/Switch.pm /Library/Perl/5.34/
+sudo cp /Users/odilonhoundegnonto/.cpan/build/Switch-2.17-0/Switch.pm /Library/Perl/5.34/
+sudo cp /Users/odilonhoundegnonto/.cpan/build/Switch-2.17-0/blib/lib/Switch.pm /Library/Perl/5.34/
+sudo cp /opt/homebrew/Cellar/perl/5.40.2/lib/perl5/site_perl/5.40/Switch.pm /Library/Perl/5.34/
