@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Explication détaillée d’un testbench VHDL : adder8b_bt</title>
+<style>
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#1f2937}
+h1,h2,h3{color:#111827;line-height:1.25}
+h1{font-size:2rem}
+h2{border-bottom:2px solid #e5e7eb;padding-bottom:.35rem;margin-top:2.2rem}
+code{background:#f3f4f6;padding:.15em .35em;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
+pre{background:#0f172a;color:#e2e8f0;padding:1.1rem;border-radius:10px;overflow:auto}
+pre code{background:none;color:inherit;padding:0}
+table{border-collapse:collapse;width:100%;margin:1.2rem 0}
+th,td{border:1px solid #d1d5db;padding:.55rem .75rem;text-align:left;vertical-align:top}
+th{background:#f9fafb}
+</style>
+</head>
+<body>
+
+<h1>Explication détaillée d’un testbench VHDL : <code>adder8b_bt</code></h1>
+
+<p>Ce code est un <strong>testbench VHDL</strong> : il ne décrit pas un circuit à synthétiser, mais un « laboratoire de simulation » qui applique des entrées à un additionneur 8 bits, observe sa sortie et vérifie automatiquement si elle est correcte.</p>
+
+<p>C’est un excellent exemple pour découvrir VHDL, car il montre les deux faces du langage :</p>
+<ul>
+<li>VHDL permet de <strong>décrire du matériel</strong> : ici, l’additionneur <code>adder8b</code>.</li>
+<li>VHDL permet aussi de <strong>vérifier ce matériel</strong> : ici, le testbench <code>adder8b_bt</code>.</li>
+</ul>
+
+<h2>Rôle général du code</h2>
+<p>Le testbench s’appelle <code>adder8b_bt</code> et teste une entité nommée <code>adder8b</code>, qui réalise vraisemblablement :</p>
+<p>\[ \{cout, sum\} = a + b + cin \]</p>
+<p>Ici, <code>cin</code> est fixé à <code>'0'</code>, donc le test vérifie simplement :</p>
+<p>\[ sum = a + b \]</p>
+<p>Le testbench génère l’horloge, libère le reset, fait varier <code>a</code> et <code>b</code> de 0 à 100, puis compare la sortie <code>sum</code> à la valeur attendue.</p>
+
+<h2>Code analysé</h2>
+<pre><code>library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+use std.env.all;
+
+-- Declaration of the entity: like a closed laboratory, it has no ports,
+-- and is used to test the adder8b entity
+entity adder8b_bt is
+end entity adder8b_bt;
+
+architecture behavior of adder8b_bt is
+    constant Nbits : natural := 8;
+    constant HALF_ADDER : time := 5 ns;
+
+    signal clk : std_logic := '0';
+    signal reset_n : std_logic := '0';
+
+    procedure wait_cycles (n : natural) is
+    begin
+        for i in 1 to n-1 loop
+            wait until rising_edge(clk);
+        end loop;
+    end procedure wait_cycles;
+
+    signal a, b : std_logic_vector(Nbits - 1 downto 0) := x"00";
+    signal sum : std_logic_vector(Nbits - 1 downto 0) := x"00";
+    signal cout : std_logic;
+begin
+    reset_n &lt;= '0', '1' after 123 ns;
+    clk &lt;= not(clk) after HALF_ADDER;
+
+    dut : entity work.adder8b
+    port map(
+        a   =&gt; a,
+        b   =&gt; b,
+        cin =&gt; '0',
+        sum =&gt; sum,
+        cout =&gt; cout
+    );
+
+    stim: process
+        variable expected : std_logic_vector(Nbits - 1 downto 0);
+        variable nb_tests : natural := 0;
+        variable nb_errors : natural := 0;
+    begin
+        report "running testbench for adder()";
+        report "waiting for asynchronous reset to be deasserted";
+        wait until reset_n = '1';
+        wait_cycles(10);
+
+        for a_int in 0 to 100 loop
+            for b_int in 0 to 100 loop
+                nb_tests := nb_tests + 1;
+                report "testing " &amp; integer'image(a_int)
+                     &amp; " + " &amp; integer'image(b_int);
+
+                a &lt;= std_logic_vector(to_unsigned(a_int, Nbits));
+                b &lt;= std_logic_vector(to_unsigned(b_int, Nbits));
+                expected := std_logic_vector(to_unsigned(a_int + b_int, Nbits));
+
+                wait until rising_edge(clk);
+
+                if sum /= expected then
+                    nb_errors := nb_errors + 1;
+                    report "bug : expecting 0x" &amp; to_hstring(expected)
+                         &amp; ". Got : 0x" &amp; to_hstring(sum);
+                end if;
+            end loop;
+        end loop;
+
+        report "number of tests run : " &amp; integer'image(nb_tests);
+        report "number of errors : " &amp; integer'image(nb_errors);
+
+        wait_cycles(200);
+
+        report "testbench finished";
+        report "end of simulation";
+        stop;
+    end process stim;
+
+end architecture behavior;
+</code></pre>
+
+<h2>Les bibliothèques utilisées</h2>
+<pre><code>library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+use std.env.all;
+</code></pre>
+
+<table>
+<tr><th>Bibliothèque</th><th>Rôle</th></tr>
+<tr><td><code>ieee.std_logic_1164</code></td><td>Fournit les types logiques <code>std_logic</code> et <code>std_logic_vector</code>, ainsi que <code>rising_edge</code>.</td></tr>
+<tr><td><code>ieee.numeric_std</code></td><td>Fournit les types numériques <code>unsigned</code> et <code>signed</code>, ainsi que les conversions comme <code>to_unsigned</code>.</td></tr>
+<tr><td><code>std.env</code></td><td>Fournit des procédures de contrôle de simulation, notamment <code>stop</code>.</td></tr>
+</table>
+
+<h3>Point important pour les étudiants</h3>
+<p>Un <code>std_logic_vector</code> n’est <strong>pas un nombre</strong> : c’est un tableau de bits.</p>
+<p>Pour faire une addition, on doit :</p>
+<ol>
+<li>Convertir le vecteur de bits en nombre non signé avec <code>unsigned</code>.</li>
+<li>Effectuer le calcul.</li>
+<li>Reconvertir le résultat en <code>std_logic_vector</code>.</li>
+</ol>
+<pre><code>expected := std_logic_vector(to_unsigned(a_int + b_int, Nbits));
+</code></pre>
+
+<h2>L’entité de test</h2>
+<pre><code>entity adder8b_bt is
+end entity adder8b_bt;
+</code></pre>
+<p>Une entité VHDL normale possède des ports : entrées et sorties physiques. Ici, il n’y a <strong>aucun port</strong>, car un testbench n’est pas connecté au monde extérieur : il est lui-même le monde extérieur.</p>
+<p>Le testbench :</p>
+<ul>
+<li>génère les entrées <code>a</code> et <code>b</code> ;</li>
+<li>génère l’horloge <code>clk</code> ;</li>
+<li>génère le reset <code>reset_n</code> ;</li>
+<li>observe les sorties <code>sum</code> et <code>cout</code>.</li>
+</ul>
+
+<table>
+<tr><th>Circuit réel</th><th>Testbench</th></tr>
+<tr><td>Reçoit des entrées</td><td>Génère les entrées</td></tr>
+<tr><td>Produit des sorties</td><td>Observe les sorties</td></tr>
+<tr><td>Doit être synthétisable</td><td>Ne doit pas être synthétisé</td></tr>
+<tr><td>Décrit le matériel</td><td>Décrit le scénario de test</td></tr>
+<tr><td>Décrit ce que fait le circuit</td><td>Vérifie que le circuit fait bien ce qui est attendu</td></tr>
+</table>
+
+<h2>Les constantes</h2>
+<pre><code>constant Nbits : natural := 8;
+constant HALF_ADDER : time := 5 ns;
+</code></pre>
+<ul>
+<li><code>Nbits = 8</code> signifie que les opérandes et la somme ont 8 bits.</li>
+<li><code>HALF_ADDER = 5 ns</code> est la demi-période de l’horloge.</li>
+<li>L’horloge change d’état toutes les 5 ns, donc sa période complète est de 10 ns.</li>
+<li>La fréquence d’horloge correspondante est donc de 100 MHz.</li>
+</ul>
+<p>Utiliser des constantes est une bonne pratique : pour tester un additionneur 16 bits, il suffirait de modifier une seule ligne.</p>
+
+<h2>Les signaux du testbench</h2>
+<pre><code>signal clk : std_logic := '0';
+signal reset_n : std_logic := '0';
+
+signal a, b : std_logic_vector(Nbits - 1 downto 0) := x"00";
+signal sum : std_logic_vector(Nbits - 1 downto 0) := x"00";
+signal cout : std_logic;
+</code></pre>
+
+<table>
+<tr><th>Signal</th><th>Rôle</th></tr>
+<tr><td><code>clk</code></td><td>Horloge du système.</td></tr>
+<tr><td><code>reset_n</code></td><td>Reset actif à l’état bas.</td></tr>
+<tr><td><code>a</code></td><td>Premier opérande sur 8 bits.</td></tr>
+<tr><td><code>b</code></td><td>Second opérande sur 8 bits.</td></tr>
+<tr><td><code>sum</code></td><td>Somme sur 8 bits produite par le circuit testé.</td></tr>
+<tr><td><code>cout</code></td><td>Retenue de sortie.</td></tr>
+</table>
+
+<h3>Le reset actif bas</h3>
+<p>Le nom <code>reset_n</code> contient le suffixe <code>_n</code>, qui signifie <em>negative</em> ou <em>not</em>.</p>
+<ul>
+<li>Lorsque <code>reset_n = '0'</code>, le circuit est en reset.</li>
+<li>Lorsque <code>reset_n = '1'</code>, le circuit fonctionne normalement.</li>
+</ul>
+
+<h3>Exemple de dépassement</h3>
+<p>Avec des opérandes sur 8 bits, la valeur maximale est 255.</p>
+<p>\[ 200 + 100 = 300 \]</p>
+<p>Le résultat ne tient pas sur 8 bits. Le circuit renvoie alors :</p>
+<ul>
+<li><code>sum = 44</code>, qui correspond aux 8 bits de poids faible de 300 ;</li>
+<li><code>cout = '1'</code>, qui indique qu’il y a une retenue.</li>
+</ul>
+
+<h2>La procédure <code>wait_cycles</code></h2>
+<pre><code>procedure wait_cycles (n : natural) is
+begin
+    for i in 1 to n-1 loop
+        wait until rising_edge(clk);
+    end loop;
+end procedure wait_cycles;
+</code></pre>
+<p>Cette procédure attend plusieurs fronts montants de l’horloge. Elle rend le testbench plus lisible : au lieu d’écrire plusieurs fois <code>wait until rising_edge(clk);</code>, on écrit simplement <code>wait_cycles(10);</code>.</p>
+
+<h3>Attention : petite erreur dans le code</h3>
+<p>La boucle est écrite ainsi :</p>
+<pre><code>for i in 1 to n-1 loop
+</code></pre>
+<p>Elle attend donc seulement <code>n - 1</code> fronts montants, et non <code>n</code> fronts montants.</p>
+<p>Pour attendre réellement <code>n</code> fronts montants, il faudrait écrire :</p>
+<pre><code>for i in 1 to n loop
+    wait until rising_edge(clk);
+end loop;
+</code></pre>
+<p>C’est un bon exemple à montrer aux étudiants : un testbench doit être aussi rigoureux que le circuit qu’il teste.</p>
+
+<h2>Génération du reset</h2>
+<pre><code>reset_n &lt;= '0', '1' after 123 ns;
+</code></pre>
+<ol>
+<li>Au temps \(t = 0\), <code>reset_n</code> vaut <code>'0'</code> : le circuit est en reset.</li>
+<li>À \(t = 123\) ns, <code>reset_n</code> passe à <code>'1'</code> : le reset est relâché.</li>
+</ol>
+<p>La valeur 123 ns est volontairement inhabituelle. Elle évite que le reset change exactement au même instant qu’un front d’horloge, ce qui peut créer des ambiguïtés de simulation.</p>
+
+<h2>Génération de l’horloge</h2>
+<pre><code>clk &lt;= not(clk) after HALF_ADDER;
+</code></pre>
+<p>C’est une affectation <strong>concurrente</strong> : elle est permanente et se trouve en dehors de tout <code>process</code>.</p>
+<ol>
+<li><code>clk</code> commence à <code>'0'</code>.</li>
+<li>Après 5 ns, il devient <code>'1'</code>.</li>
+<li>Après 5 autres ns, il redevient <code>'0'</code>.</li>
+<li>Le processus se répète indéfiniment.</li>
+</ol>
+<p>\[ T = 5\ \text{ns} + 5\ \text{ns} = 10\ \text{ns} \]</p>
+<p>\[ f = \frac{1}{T} = 100\ \text{MHz} \]</p>
+<pre><code>clk : 0 ──┐5 ns┌──┐5 ns┌──┐5 ns┌──
+          └────┘  └────┘  └────┘
+</code></pre>
+<p>Le front montant correspond au passage de <code>'0'</code> à <code>'1'</code>.</p>
+
+<h2>Connexion du circuit testé</h2>
+<pre><code>dut : entity work.adder8b
+port map(
+    a   =&gt; a,
+    b   =&gt; b,
+    cin =&gt; '0',
+    sum =&gt; sum,
+    cout =&gt; cout
+);
+</code></pre>
+<p><code>dut</code> signifie <strong>Design Under Test</strong> : le circuit que l’on veut vérifier.</p>
+<ul>
+<li><code>work</code> est la bibliothèque de travail, celle qui contient les fichiers compilés du projet.</li>
+<li><code>entity work.adder8b</code> désigne l’entité <code>adder8b</code>.</li>
+<li>Le <code>port map</code> relie les signaux du testbench aux ports du DUT.</li>
+</ul>
+<pre><code>Testbench                     DUT : adder8b
+-----------                   -------------
+a    ----------------------&gt; a
+b    ----------------------&gt; b
+'0'  ----------------------&gt; cin
+sum  &lt;----------------------- sum
+cout &lt;----------------------- cout
+</code></pre>
+<p>Le testbench ne connaît pas forcément le fonctionnement interne de <code>adder8b</code>. Il le considère comme une boîte noire et vérifie uniquement son comportement externe.</p>
+
+<h2>Le processus de stimulation</h2>
+<pre><code>stim: process
+</code></pre>
+<p>Un <code>process</code> est une partie séquentielle du code VHDL. Dans un testbench, il sert à décrire une chronologie :</p>
+<ol>
+<li>Attendre la fin du reset.</li>
+<li>Appliquer une valeur à <code>a</code>.</li>
+<li>Appliquer une valeur à <code>b</code>.</li>
+<li>Attendre un front d’horloge.</li>
+<li>Vérifier la sortie <code>sum</code>.</li>
+<li>Répéter l’opération pour d’autres valeurs.</li>
+</ol>
+
+<h2>Les variables locales</h2>
+<pre><code>variable expected : std_logic_vector(Nbits - 1 downto 0);
+variable nb_tests : natural := 0;
+variable nb_errors : natural := 0;
+</code></pre>
+
+<table>
+<tr><th>Variable</th><th>Rôle</th></tr>
+<tr><td><code>expected</code></td><td>Contient la somme théorique calculée par le testbench.</td></tr>
+<tr><td><code>nb_tests</code></td><td>Compte le nombre de cas testés.</td></tr>
+<tr><td><code>nb_errors</code></td><td>Compte le nombre d’échecs détectés.</td></tr>
+</table>
+
+<h3>Différence entre signal et variable</h3>
+<table>
+<tr><th><code>signal</code></th><th><code>variable</code></th></tr>
+<tr><td>Représente un fil ou un registre</td><td>Représente une valeur locale de calcul</td></tr>
+<tr><td>Mise à jour après un delta cycle</td><td>Mise à jour immédiatement</td></tr>
+<tr><td>Utilisée pour communiquer entre processus</td><td>Utilisée dans un processus</td></tr>
+<tr><td>Adaptée à la description matérielle</td><td>Adaptée au testbench et aux calculs intermédiaires</td></tr>
+</table>
+
+<h2>Attente du reset</h2>
+<pre><code>report "running testbench for adder()";
+report "waiting for asynchronous reset to be deasserted";
+wait until reset_n = '1';
+wait_cycles(10);
+</code></pre>
+<p>Le testbench affiche d’abord des messages dans la console. Puis il attend que <code>reset_n</code> devienne <code>'1'</code>, c’est-à-dire que le circuit sorte du reset.</p>
+<p>Ensuite, il attend quelques cycles d’horloge pour laisser le circuit se stabiliser avant de commencer les tests.</p>
+
+<h2>Les boucles de test</h2>
+<pre><code>for a_int in 0 to 100 loop
+    for b_int in 0 to 100 loop
+</code></pre>
+<ul>
+<li>La boucle externe fait varier <code>a</code> de 0 à 100.</li>
+<li>La boucle interne fait varier <code>b</code> de 0 à 100.</li>
+</ul>
+<p>\[ 101 \times 101 = 10201 \]</p>
+<p>Ce n’est pas une vérification exhaustive de toutes les paires possibles sur 8 bits, qui serait :</p>
+<p>\[ 256 \times 256 = 65536 \]</p>
+<p>Mais c’est déjà une vérification automatique très utile.</p>
+
+<h2>Conversion des valeurs numériques</h2>
+<pre><code>a &lt;= std_logic_vector(to_unsigned(a_int, Nbits));
+b &lt;= std_logic_vector(to_unsigned(b_int, Nbits));
+expected := std_logic_vector(to_unsigned(a_int + b_int, Nbits));
+</code></pre>
+<ol>
+<li><code>a_int</code> est un entier VHDL, par exemple 25.</li>
+<li><code>to_unsigned(a_int, Nbits)</code> le convertit en nombre non signé de 8 bits.</li>
+<li><code>std_logic_vector(...)</code> convertit ce nombre en vecteur de bits.</li>
+<li>Le signal <code>a</code> reçoit finalement la valeur binaire correspondante.</li>
+</ol>
+
+<h3>Exemple avec <code>a_int = 25</code></h3>
+<p>\[ 25 = 00011001_2 \]</p>
+<pre><code>a &lt;= "00011001";
+</code></pre>
+
+<h3>Exemple avec <code>a_int = 25</code> et <code>b_int = 10</code></h3>
+<p>\[ 25 + 10 = 35 \]</p>
+<p>\[ 35 = 00100011_2 \]</p>
+<pre><code>expected := "00100011";
+</code></pre>
+
+<h2>Vérification du résultat</h2>
+<pre><code>wait until rising_edge(clk);
+
+if sum /= expected then
+    nb_errors := nb_errors + 1;
+    report "bug : expecting 0x" &amp; to_hstring(expected)
+         &amp; ". Got : 0x" &amp; to_hstring(sum);
+end if;
+</code></pre>
+<ul>
+<li><code>/=</code> signifie « différent de ».</li>
+<li>Si <code>sum</code> est différent de <code>expected</code>, le test échoue.</li>
+<li><code>to_hstring</code> convertit le vecteur de bits en chaîne hexadécimale lisible.</li>
+<li><code>&amp;</code> concatène les chaînes de caractères.</li>
+</ul>
+
+<h3>Exemple de message d’erreur</h3>
+<pre><code>bug : expecting 0x23. Got : 0x22
+</code></pre>
+<p>Cela signifie que le test attendait 35, soit <code>0x23</code>, mais que le circuit a produit 34, soit <code>0x22</code>.</p>
+
+<h2>Bilan et arrêt de la simulation</h2>
+<pre><code>report "number of tests run : " &amp; integer'image(nb_tests);
+report "number of errors : " &amp; integer'image(nb_errors);
+
+wait_cycles(200);
+
+report "testbench finished";
+report "end of simulation";
+stop;
+</code></pre>
+<p>Après les 10 201 tests, le testbench affiche le nombre total de tests et le nombre d’erreurs détectées. Puis il attend 200 cycles, affiche les messages de fin et appelle <code>stop</code>.</p>
+<p>La procédure <code>stop</code> provient de <code>std.env</code> et sert à arrêter la simulation depuis le testbench.</p>
+
+<h2>Résumé pédagogique</h2>
+<ol>
+<li><strong>Décrire le circuit</strong> dans <code>adder8b</code>.</li>
+<li><strong>Créer un environnement de test</strong> dans <code>adder8b_bt</code>.</li>
+<li><strong>Appliquer des stimulis</strong> : <code>a</code>, <code>b</code>, horloge, reset.</li>
+<li><strong>Calculer un résultat de référence</strong> : <code>expected</code>.</li>
+<li><strong>Comparer automatiquement</strong> la réponse du circuit à la référence.</li>
+<li><strong>Compter et signaler les erreurs</strong>.</li>
+</ol>
+<p>C’est exactement la base du métier de conception numérique : on ne se contente pas de dire « cela devrait marcher » ; on construit un testbench qui le prouve, automatiquement et de façon reproductible.</p>
+
+<h2>Améliorations possibles</h2>
+<ul>
+<li>Corriger <code>wait_cycles</code> afin d’attendre exactement <code>n</code> fronts montants.</li>
+<li>Tester toutes les valeurs de 0 à 255 pour <code>a</code> et <code>b</code>.</li>
+<li>Vérifier aussi <code>cout</code> lorsque <code>a + b &gt; 255</code>.</li>
+<li>Ajouter des cas avec <code>cin = '1'</code>.</li>
+<li>Utiliser des assertions <code>assert</code> en plus des messages <code>report</code>.</li>
+<li>Écrire les résultats dans un fichier de log.</li>
+<li>Séparer les tests simples, les tests de débordement et les tests aléatoires.</li>
+</ul>
+
+<h3>Exemple d’assertion</h3>
+<pre><code>assert sum = expected
+    report "Erreur : somme incorrecte"
+    severity error;
+</code></pre>
+<p>Cette forme est très utilisée en VHDL : elle exprime directement l’exigence à vérifier.</p>
+
+</body>
+</html>

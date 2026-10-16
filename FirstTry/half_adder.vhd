@@ -16,5 +16,5 @@ architecture logic of half_adder is
 
 begin
     sum <= a xor b;
-    coout <= a and b;
+    cout <= a and b;
 end logic;
